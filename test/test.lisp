@@ -68,12 +68,12 @@ package-name-test-results-yyy-hh-mm-ss.txt"
 	   :count 10
 	   :limit 9)))
 
-(test (t-update-last-count :depends-on (and t-increment-event))
+(test (t-n-update-last-count :depends-on (and t-increment-event))
   (let ((rate-limit (make-rate-limit 11 20)))
+    (is (= 0 (rate-limit-last-count rate-limit)))
     (push 3724953998
 	  (rate-limit-events rate-limit))
-    (is (= 0 (rate-limit-last-count rate-limit)))
-    (rate-limit::update-last-count  rate-limit)
+    (rate-limit::n-update-last-count  rate-limit)
     (is (= 1 (rate-limit-last-count rate-limit)))))
 
 (test (t-increment-event :depends-on (and t-make-rate-limit
@@ -104,7 +104,7 @@ package-name-test-results-yyy-hh-mm-ss.txt"
   (let ((rate-limit (make-rate-limit 4 2)))
     (setf (rate-limit-events rate-limit)
 	  '(3724954000 3724954000 3724954000 3724954000))
-    (is (= 2
+    (is (= 3
 	   (rate-limit::calc-backoff rate-limit
 				     3724954000)))
     (is (/= 20

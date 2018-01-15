@@ -2,15 +2,21 @@
 (uiop/package:define-package #:rate-limit
   (:use #:cl)
   (:export
+   ;; class & initialize function
    #:rate-limit
    #:make-rate-limit
+   ;; Macros
+   #:def-rate-limited-fun
+   #:with-retry
+   #:*muffle-warnings*
 
+   ;; Accessor functions
    #:rate-limit-events
    #:rate-limit-interval
    #:rate-limit-count
    #:rate-limit-last-count
    #:increment-event
-
+   ;; Error and restart function
    #:rate-limit-exceeded
    #:retry-with-backoff))
 
@@ -22,7 +28,9 @@
 (defparameter *increment-event-lock*
   (bt:make-lock  "rate-limit:increment-event-lock"))
 
-(defparameter *muffle-warnings* nil)
+(defparameter *muffle-warnings* nil
+  "Use to muffle the warnings printed when invoking the
+'retry-with-backoff' restart")
 
 (defparameter *default-count* 3)
 
@@ -41,6 +49,13 @@
    (last-count :initarg :last-count
 		 :initform 0
 		 :accessor rate-limit-last-count)))
+
+(defmethod print-object ((rate-limit rate-limit) stream)
+  "Prints RATE-LIMIT  Count + Interval instead of ID"
+  (print-unreadable-object (rate-limit stream :type t)
+    (format stream "~S/~s"
+	    (rate-limit-count rate-limit)
+	    (rate-limit-interval rate-limit))))
 
 (defun make-rate-limit (count interval)
   "Creates an CLOS RATE-LIMIT object based on a COUNT
@@ -68,9 +83,9 @@ e.g.
    (interval :initarg :interval :reader interval))
   (:report (lambda (condition stream)
 	     (format stream
-		     "Internal Rate Limit Exceeded
-COUNT of ~a over INTERVAL ~a seconds
-Exceeds LIMIT of COUNT ~a over INTERVAL of ~a seconds "
+		     "Internal Rate Limit Will Be Exceeded:
+Current - COUNT of ~a over INTERVAL of ~a seconds exceeds
+LIMIT   - COUNT of ~a over INTERVAL of ~a seconds "
 		     (when (slot-boundp condition 'last-count)
 		       (last-count condition))
 		     (when (slot-boundp condition 'interval)
@@ -85,30 +100,37 @@ Exceeds LIMIT of COUNT ~a over INTERVAL of ~a seconds "
 at the current time.  If the new-count is greater than the count
 signals 'RATE-LIMIT-EXCEEDED error
 Returns no useful value"
-  (let ((error-? nil))
-    (bt:with-lock-held (*increment-event-lock*)
-      (push (get-universal-time)
-	    (rate-limit-events rate-limit))
-      (when (> (update-last-count rate-limit)
+  (bt:with-lock-held (*increment-event-lock*)
+    (push (get-universal-time)
+	  (rate-limit-events rate-limit))
+    (n-update-last-count rate-limit))
+  (restart-case 
+      (when (> (rate-limit-last-count rate-limit) 
 	       (rate-limit-count rate-limit))
-	(pop (rate-limit-events rate-limit))
-	(decf (rate-limit-last-count rate-limit))
-	(setf error-? t)))
-    (if error-?
-	(restart-case 
-	    (error 'rate-limit-exceeded
-		   :count (+ 1 (rate-limit-last-count rate-limit))
-		   :interval (rate-limit-interval rate-limit)
-		   :limit (rate-limit-count rate-limit))
-	  (retry-with-backoff
-	      (&optional c
-		 (duration (calc-backoff rate-limit
-					 (get-universal-time))))
-	    (unless *muffle-warnings*
-		(warn "invoking backoff due to: ~a" c))
-	    (log:info duration)
-	    (sleep duration)
-	    (increment-event rate-limit)))))
+	(error 'rate-limit-exceeded
+	       :count (rate-limit-last-count rate-limit)
+	       :interval (rate-limit-interval rate-limit)
+	       :limit (rate-limit-count rate-limit)))
+    (retry-with-backoff (&optional c (duration (calc-backoff
+						rate-limit
+						(get-universal-time))))
+      :report (lambda (stream)
+		(format stream "Check again after sleeping ~a seconds to not exceed the rate-limit"  (calc-backoff rate-limit (get-universal-time))))
+      (unless *muffle-warnings*
+	(warn "invoking backoff for ~a seconds due to: ~a"
+	      duration (or c "unknown error")))
+      (pop (rate-limit-events rate-limit))
+      (decf (rate-limit-last-count rate-limit))
+      (sleep duration)
+      (increment-event rate-limit))
+    (continue-exceed-rate-limit (&optional c)
+      :report (lambda (stream)
+		(format stream "Proceed and Exceed the Rate Limit"))
+      (unless *muffle-warnings*
+	(if (> 0 (calc-backoff rate-limit (get-universal-time)))
+	    (warn "Continuing. This action will Exceed Rate Limit in spite of: ~a" (or c "unknown error"))
+	    (warn "Continuing. This action did not Exceed Rate Limit")))
+      (values)))
   (values))
 
 (defun retry-with-backoff (c)
@@ -121,28 +143,23 @@ RATE-LIMIT-LIMIT at the given TIME"
   (with-slots (events interval count)
       rate-limit
     (let ((backoff (+ (nth (- count 1) events)
-		 interval	
-		 (- time))))
+		      interval
+		      1
+		      (- time))))
       (if (>= backoff 0)
 	  backoff
 	  0))))
 
-(declaim (inline update-last-count))
-(defun update-last-count (rate-limit)
+(declaim (inline n-update-last-count))
+(defun n-update-last-count (rate-limit)
   "Updates the last-count of the RATE-LIMIT.  Not threadsafe."
   (with-slots (events interval last-count)
       rate-limit
     (let ((stop-time (- (car events) interval)))
       (setf last-count 0)
-      (block walk-list-loop
-	(dotimes (i (length events)) 
-	  (if (> (nth i events) stop-time)
-	      ;; count event if time in bounds
-	      (incf last-count)
-	      ;; truncate events if time exceeds interval and return
-	      (progn
-		(setf (nthcdr i events) nil)
-		(return-from walk-list-loop)))))
+      (loop for el in events always (>= el stop-time)
+	 do  (incf last-count))
+      (setf (nthcdr last-count events) nil)
       (values last-count interval))))
 
 (defmacro with-rate-limit (count interval rate-limit-exceeded-fn
@@ -190,3 +207,12 @@ EG:
 	    ,doc
 	    (increment-event ,rate-limit)
 	    ,@body))))))
+
+(defmacro with-retry (&body body)
+  `(handler-bind ((rate-limit:rate-limit-exceeded
+		   #'(lambda (c)
+		       (unless rate-limit:*muffle-warnings*
+			 (warn "Invoking restart:"))
+		       (rate-limit:retry-with-backoff c))))
+     ,@body))
+   
