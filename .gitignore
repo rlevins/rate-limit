@@ -1,0 +1,10 @@
+#Ignore temp and fasl files
+*~
+\#*\#
+\.\#*
+*.fasl
+*.lx64fsl
+*.dx64fsl
+*.DS_Store
+*.csv
+my-auth-file.lisp
