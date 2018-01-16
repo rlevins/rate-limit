@@ -20,7 +20,8 @@
 	       #:fiveam
 	       #:local-time
 	       #:cl-fad
-	       #:cl-ppcre)
+	       #:cl-ppcre
+	       #:log4cl)
   :components ((:module "test"
 			:serial t
 			:components
@@ -28,7 +29,11 @@
   :perform
   (asdf:test-op (o s)
 		(uiop:symbol-call "rate-limit/test"
-				      '#:run-my-tests)))
+				  '#:run-my-tests)))
+
+(asdf:defsystem "rate-limit-examples"
+  :depends-on (#:rate-limit)
+  :components ((:file "rate-limit-examples")))
 
 
 
