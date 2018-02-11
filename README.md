@@ -43,6 +43,9 @@ To run the test suite:
 (rate-limit/test:run-my-tests)
 ```
 
+With a rate-limit object, a call to an API with a published rate-limit can be made without triggering a `429 Too Many Requests` 
+
+
 
 ## API
 The RATE-LIMIT package exports the following symbols:
@@ -83,6 +86,26 @@ The RATE-LIMIT package exports the following symbols:
 ### INCREMENT-EVENT
 `(RATE-LIMIT)`
 
+When called, increments the event count.  Each increment will discard events that are older than the current time minus the interval.  
+
+```lisp 
+(defparameter *test-rate-limit* (make-rate-limit 2 10))
+;; *test-rate-limit*
+
+*test-rate-limit*
+;; #<RATE-LIMIT 2/10>
+
+(increment-event *test-rate-limit*)
+; No value
+
+(increment-event *test-rate-limit*)
+; No value
+
+(rate-limit-last-count *test-rate-limit*)
+;; 2
+
+```
+
 ### DEF-RATE-LIMITED-FUNCTION
 
 Creates a rate-limited function named SYMBOL, SYMBOL can also be a list
@@ -101,7 +124,7 @@ EG:
 
 (def-rate-limited-fun (print-time :count 2 :interval 5)
     (&optional (full-? t))
-  "A random API call, limited to 1 call per 60 seconds"
+  "A random API call, limited to 2 call per 5 seconds"
   (let ((day-names '("Monday" "Tuesday" "Wednesday"
       "Thursday" "Friday" "Saturday"
       "Sunday")))      
@@ -119,7 +142,7 @@ EG:
 	     date
 	     year
 	     (- tz))
-     (format t "~%*** It is now ~2,'0d:~2,'0d:~2,'0d~%~%"
+     (format t "~%;*** It is now ~2,'0d:~2,'0d:~2,'0d~%~%"
 	     hour
 	     minute
 	     second)))))
@@ -128,40 +151,37 @@ EG:
 (defun run-example ()
   "Loops the test function to demonstrate the 'with-retry' macro and the rate-limit features"
  (loop for i from 1 to 5 
-    do (sleep (random 3))
+    do (sleep 1)
       (with-retry (print-time ))))
 
 (run-example)
-;*** It is now 18:02:16 of Monday, 1/15/2018 (GMT-6)
+;*** It is now 21:51:47 of Saturday, 2/10/2018 (GMT-6)
 
 
-;*** It is now 18:02:17 of Monday, 1/15/2018 (GMT-6)
+;*** It is now 21:51:48 of Saturday, 2/10/2018 (GMT-6)
 
-; Warning: Invoking restart:
-; While executing: (:INTERNAL RUN-EXAMPLE), in process repl-thread(14).
-; Warning: invoking backoff for 4 seconds due to: Internal Rate Limit Will Be Exceeded:
+; Warning: invoking retry-with-backoff for 5 seconds due to: Internal Rate Limit Will Be Exceeded:
 ;          Current - COUNT of 3 over INTERVAL of 5 seconds exceeds
 ;          LIMIT   - COUNT of 2 over INTERVAL of 5 seconds 
 ; While executing: INCREMENT-EVENT, in process repl-thread(14).
 
-;*** It is now 18:02:23 of Monday, 1/15/2018 (GMT-6)
+;*** It is now 21:51:54 of Saturday, 2/10/2018 (GMT-6)
 
 
-;*** It is now 18:02:25 of Monday, 1/15/2018 (GMT-6)
+;*** It is now 21:51:55 of Saturday, 2/10/2018 (GMT-6)
 
-; Warning: Invoking restart:
-; While executing: (:INTERNAL RUN-EXAMPLE), in process repl-thread(14).
-; Warning: invoking backoff for 4 seconds due to: Internal Rate Limit Will Be Exceeded:
+; Warning: invoking retry-with-backoff for 5 seconds due to: Internal Rate Limit Will Be Exceeded:
 ;          Current - COUNT of 3 over INTERVAL of 5 seconds exceeds
 ;          LIMIT   - COUNT of 2 over INTERVAL of 5 seconds 
 ; While executing: INCREMENT-EVENT, in process repl-thread(14).
 
-;*** It is now 18:02:31 of Monday, 1/15/2018 (GMT-6)
-
-
+;*** It is now 21:52:01 of Saturday, 2/10/2018 (GMT-6)
 
 
 ```
+
+# TODOs
+ * [] Implement progressive backoff, by tracking number of backoff attempts, and doubling the backoff time for each event.  Then clear on the next successful INCREMENT-EVENT call. 
 
 # Author
 
