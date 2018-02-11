@@ -1,12 +1,15 @@
-# rate-limit
+# RATE-LIMIT
 
-A common lisp library that provides a rate-limit object and function, which will signal an error before a rate-limited function is called. 
+A common lisp library that provides a rate-limit object, functions and macros, which will signal an error before a rate-limited function is called, and provides restarts.
 
 
 ## RATE-LIMIT
-
+`(make-rate-limit sl
 
 ## API
+
+### MAKE-RATE-LIMIT 
+
 
 ### DEF-RATE-LIMITED-FUNCTION
 
@@ -50,22 +53,45 @@ EG:
 	     second)))))
 
 
-(with-retry (print-time))  ; *** It is now 17:51:46 of Monday, 1/15/2018 (GMT-6)
-(with-retry (print-time))  ; *** It is now 17:51:47 of Monday, 1/15/2018 (GMT-6)
-(with-retry (print-time))
+(defun run-example ()
+  "Loops the test function to demonstrate the 'with-retry' macro and the rate-limit features"
+ (loop for i from 1 to 5 
+    do (sleep (random 3))
+      (with-retry (print-time ))))
+
+(run-example)
+;*** It is now 18:02:16 of Monday, 1/15/2018 (GMT-6)
+
+
+;*** It is now 18:02:17 of Monday, 1/15/2018 (GMT-6)
+
 ; Warning: Invoking restart:
-; While executing: #<Anonymous Function #x3020024068DF>, in process repl-thread(14).
-; Warning: invoking backoff for 5 seconds due to: Internal Rate Limit Will Be Exceeded:
+; While executing: (:INTERNAL RUN-EXAMPLE), in process repl-thread(14).
+; Warning: invoking backoff for 4 seconds due to: Internal Rate Limit Will Be Exceeded:
 ;          Current - COUNT of 3 over INTERVAL of 5 seconds exceeds
 ;          LIMIT   - COUNT of 2 over INTERVAL of 5 seconds 
 ; While executing: INCREMENT-EVENT, in process repl-thread(14).
 
-;*** It is now 17:51:53 of Monday, 1/15/2018 (GMT-6)
+;*** It is now 18:02:23 of Monday, 1/15/2018 (GMT-6)
 
-(with-retry (print-time)) ; *** It is now 17:51:55 of Monday, 1/15/2018 (GMT-6)
-NIL
+
+;*** It is now 18:02:25 of Monday, 1/15/2018 (GMT-6)
+
+; Warning: Invoking restart:
+; While executing: (:INTERNAL RUN-EXAMPLE), in process repl-thread(14).
+; Warning: invoking backoff for 4 seconds due to: Internal Rate Limit Will Be Exceeded:
+;          Current - COUNT of 3 over INTERVAL of 5 seconds exceeds
+;          LIMIT   - COUNT of 2 over INTERVAL of 5 seconds 
+; While executing: INCREMENT-EVENT, in process repl-thread(14).
+
+;*** It is now 18:02:31 of Monday, 1/15/2018 (GMT-6)
+
+
+
+
 ```
 
+# Author
 
 ```
 ;; Copyright (c) 2018 Rathan Levins 

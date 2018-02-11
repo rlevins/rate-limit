@@ -7,7 +7,7 @@
 
 (def-rate-limited-fun (print-time :count 2 :interval 5)
     (&optional (full-? t))
-  "A random API call, limited to 1 call per 60 seconds"
+  "A random API call, limited to 2 calls per 5 seconds"
   (let ((day-names '("Monday" "Tuesday" "Wednesday"
       "Thursday" "Friday" "Saturday"
       "Sunday")))      
@@ -16,7 +16,7 @@
       (get-decoded-time)
     (declare (ignore dst-p))
     (if full-?
-     (format t "~%*** It is now ~2,'0d:~2,'0d:~2,'0d of ~a, ~d/~2,'0d/~d (GMT~@d)~%"
+     (format t "~%*** It is now ~2,'0d:~2,'0d:~2,'0d of ~a, ~d/~2,'0d/~d (GMT~@d)~%~%"
 	     hour
 	     minute
 	     second
@@ -25,12 +25,17 @@
 	     date
 	     year
 	     (- tz))
-     (format t "~%*** It is now ~2,'0d:~2,'0d:~2,'0d~%"
+     (format t "~%*** It is now ~2,'0d:~2,'0d:~2,'0d~%~%"
 	     hour
 	     minute
 	     second)))))
 
 (defun run-example ()
- (loop for i from 1 to 10
-    do
-      (with-retry (print-time ))))
+  "Loops the test function to demonstrate the 'with-retry' macro and the rate-limit features"
+  (format t "Loops the test function to demonstrate the 'with-retry' macro and the rate-limit features")
+  (format t "The TEST function is a funtion to print the current date and time ,but is rate limited to 2 calls per 5 seconds~%")
+ (loop for i from 1 to 5 
+    do (let ((duration (random 3)))
+         (warn "Sleeping ~a seconds" duration)
+         (sleep duration)
+         (with-retry (print-time )))))
