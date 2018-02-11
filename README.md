@@ -1,6 +1,22 @@
 # RATE-LIMIT
 
-A common lisp library that provides a rate-limit object, functions and macros, which will signal an error before a rate-limited function is called, and provides restarts.
+A common lisp library that provides a rate-limit object, functions and macros.  The RATE-LIMIT object tracks a count of events over an interval, to 1 second resolution.  The INCREMENT-EVENT function is called with a RATE-LIMIT object and will signal an error if the function exceeds the rate.  Used to guard API calls that have rate-limits associated.  Restarts are provided to sleep for a calculated period of seconds, or to continue, which will allow normal program flow to continue.  
+
+```lisp
+;;; A CLOS RATE-LIMIT object based on a COUNT
+;;; over an INTEVERAL given in seconds
+;;; e.g.
+
+   ;; API requests are limited to one call per user every three seconds
+   (make-rate-limit 1 3)        ; #<RATE-LIMIT 1/3>
+   
+   ;; once every five minutes
+   (make-rate-limit 1 (* 5 60)) ; #<RATE-LIMIT 1/300>
+
+   ;; 10 per 1 min
+   (make-rate-limit 10 60)      ; #<RATE-LIMIT 10/60>
+```
+
 
 See rate-limit-examples.lisp for quicklisp loadable examples.
 
@@ -22,7 +38,6 @@ For functioning examples:
 ```
 
 To run the test suite:
-For functioning examples:
 ```lisp
 (ql:quickload :rate-limit/test)
 (rate-limit/test:run-my-tests)

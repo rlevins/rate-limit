@@ -15,9 +15,15 @@
    #:rate-limit-interval
    #:rate-limit-count
    #:rate-limit-last-count
+
+   ;; add event to the RATE-LIMIT
    #:increment-event
-   ;; Error and restart function
+
+   ;; Conditions
    #:rate-limit-exceeded
+
+   ;; Available Restarts
+   #:continue-exceed-rate-limit 
    #:retry-with-backoff))
 
 (in-package #:rate-limit)
