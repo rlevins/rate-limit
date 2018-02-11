@@ -2,21 +2,19 @@
 
 A common lisp library that provides a rate-limit object, functions and macros, which will signal an error before a rate-limited function is called, and provides restarts.
 
-
-## RATE-LIMIT
-`(make-rate-limit sl
+See rate-limit-examples.lisp for quicklisp loadable examples.
 
 ## API
 
 ### MAKE-RATE-LIMIT 
-
+`(&optional (count *default-count*) (interval *default-interval*))`
 
 ### DEF-RATE-LIMITED-FUNCTION
 
 Creates a rate-limited function named SYMBOL, SYMBOL can also be a list
 
 `(FN-NAME &rest rate-limit-init-args &key COUNT INTERVAL)`
-
+    * FN-NAME - the name of the function 
     * COUNT - the allowable count per the INTERVAL, defaults to *default-count*
     * INTERVAL - The inteveral in seconds to count, defaults to *default-interval*
 
