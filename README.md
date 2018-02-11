@@ -86,7 +86,7 @@ The RATE-LIMIT package exports the following symbols:
 ### INCREMENT-EVENT
 `(RATE-LIMIT)`
 
-When called, increments the event count.  Each increment will discard events that are older than the current time minus the interval.  
+When called, increments the event count.  Each increment will discard events that are older than the current time minus the interval.  If INCREMENT-EVENT is called more than COUNT times in INTERVAL seconds, a RATE-LIMIT-EXCEEDED condition will be signaled. 
 
 ```lisp 
 (defparameter *test-rate-limit* (make-rate-limit 2 10))
@@ -103,6 +103,29 @@ When called, increments the event count.  Each increment will discard events tha
 
 (rate-limit-last-count *test-rate-limit*)
 ;; 2
+
+;;;; wait some time .... 
+(increment-event *test-rate-limit*) ; First ones okay
+; No value
+
+(increment-event *test-rate-limit*) ; Second ones okay
+; No value
+
+(increment-event *test-rate-limit*) ; Third one is too soon
+;; Internal Rate Limit Will Be Exceeded:
+;; Current - COUNT of 3 over INTERVAL of 10 seconds exceeds
+;; LIMIT   - COUNT of 2 over INTERVAL of 10 seconds
+;;    [Condition of type RATE-LIMIT-EXCEEDED]
+
+;; Restarts:
+;;  0: [RETRY-WITH-BACKOFF] Check again after sleeping 10 seconds to not exceed the rate-limit
+;;  1: [CONTINUE-EXCEED-RATE-LIMIT] Proceed and Exceed the Rate Limit
+;;  2: [RETRY] Retry SLIME REPL evaluation request.
+;;  3: [*ABORT] Return to SLIME's top level.
+;;  4: [ABORT-BREAK] Reset this thread
+;;  5: [ABORT] Kill this thread
+
+
 
 ```
 
