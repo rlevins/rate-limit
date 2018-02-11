@@ -4,10 +4,69 @@ A common lisp library that provides a rate-limit object, functions and macros, w
 
 See rate-limit-examples.lisp for quicklisp loadable examples.
 
+
+## Installation 
+
+The preferred way to install RATE-LIMIT is through [Quicklisp](http://www.quicklisp.org/): 
+
+`git clone https://github.com/rlevins/rate-limit.git`
+
+
+```lisp
+(ql:quickload :rate-limit)
+```
+
+For functioning examples:
+```lisp
+(ql:quickload :rate-limit-examples)
+```
+
+To run the test suite:
+For functioning examples:
+```lisp
+(ql:quickload :rate-limit/test)
+(rate-limit/test:run-my-tests)
+```
+
+
 ## API
+The RATE-LIMIT package exports the following symbols:
+
+```lisp
+(:export
+   ;; class & initialize function
+   #:rate-limit
+   #:make-rate-limit
+   ;; Macros
+   #:def-rate-limited-fun
+   #:with-retry
+   #:*muffle-warnings*
+
+   ;; Accessor functions
+   #:rate-limit-events
+   #:rate-limit-interval
+   #:rate-limit-count
+   #:rate-limit-last-count
+
+   ;; add event to the RATE-LIMIT
+   #:increment-event
+
+   ;; Conditions
+   #:rate-limit-exceeded
+
+   ;; Available Restarts
+   #:continue-exceed-rate-limit 
+   #:retry-with-backoff)
+   ```
+   
+### RATE-LIMIT 
+ CLOS class for RATE-LIMIT, keeps track of number of times INCREMENT-EVENT is called for each RATE-LIMIT object.
 
 ### MAKE-RATE-LIMIT 
 `(&optional (count *default-count*) (interval *default-interval*))`
+
+### INCREMENT-EVENT
+`(RATE-LIMIT)`
 
 ### DEF-RATE-LIMITED-FUNCTION
 
