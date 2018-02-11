@@ -116,15 +116,7 @@ Available restarts:
   (bt:with-lock-held (*increment-event-lock*)
     (push (get-universal-time)
           (rate-limit-events rate-limit))
-    (multiple-value-bind (new-count new-events)
-        (calculate-count-events rate-limit)
-      (setf (rate-limit-last-count rate-limit)
-            new-count)
-      (setf (rate-limit-events rate-limit)
-            new-events))
-    
-    ;;(n-update-last-count rate-limit)
-    )
+    (n-update-last-count rate-limit))
   (restart-case 
       (when (> (rate-limit-last-count rate-limit) 
                (rate-limit-count rate-limit))
