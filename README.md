@@ -134,9 +134,10 @@ When called, increments the event count.  Each increment will discard events tha
 Creates a rate-limited function named SYMBOL, SYMBOL can also be a list
 
 `(FN-NAME &rest rate-limit-init-args &key COUNT INTERVAL)`
-    * FN-NAME - the name of the function 
-    * COUNT - the allowable count per the INTERVAL, defaults to *default-count*
-    * INTERVAL - The inteveral in seconds to count, defaults to *default-interval*
+
+* FN-NAME - the name of the function 
+* COUNT - the allowable count per the INTERVAL, defaults to *default-count*
+* INTERVAL - The inteveral in seconds to count, defaults to *default-interval*
 
 
 ```lisp
@@ -204,7 +205,7 @@ EG:
 ```
 
 # TODOs
- * [] Implement progressive backoff, by tracking number of backoff attempts, and doubling the backoff time for each event.  Then clear on the next successful INCREMENT-EVENT call. 
+ * [ ] Implement progressive backoff, by tracking number of backoff attempts, and doubling the backoff time for each event.  Then clear on the next successful INCREMENT-EVENT call. 
 
 # Author
 
