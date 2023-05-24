@@ -15,6 +15,7 @@
    #:rate-limit-interval
    #:rate-limit-count
    #:rate-limit-last-count
+   #:rate-limit-pointer
 
    ;; add event to the RATE-LIMIT
    #:increment-event
@@ -43,6 +44,8 @@
 (defparameter *default-count* 3
   "Default value of COUNT for creating RATE-LIMIT objects")
 
+(defparameter *default-count-multiplier* 2)
+
 (defparameter *default-interval* 3
   "Default value of INTERVAL for creating RATE-LIMIT objects")
 
@@ -62,14 +65,22 @@
    (last-count :initarg :last-count
                :initform 0
                :accessor rate-limit-last-count
-               :documentation "the event count as of the last seen event")))
+               :documentation "the event count as of the last seen event")
+   (pointer  :initform 0
+             :accessor rate-limit-pointer
+             :documentation "position of the last event")))
 
 (defmethod print-object ((rate-limit rate-limit) stream)
   "Prints RATE-LIMIT  Count + Interval instead of ID"
   (print-unreadable-object (rate-limit stream :type t)
-    (format stream "~S/~s"
+    (format stream "~S/~s ~d"
             (rate-limit-count rate-limit)
-            (rate-limit-interval rate-limit))))
+            (rate-limit-interval rate-limit)
+            (current-rate rate-limit))))
+
+(defun current-rate (rate-limiter)
+  (/ (rate-limit-last-count rate-limiter)
+     (rate-limit-interval rate-limiter)))
 
 (defun make-rate-limit (&optional (count *default-count*) (interval *default-interval*))
   "Creates an CLOS RATE-LIMIT object based on a COUNT
@@ -87,7 +98,7 @@ e.g.
 
 "
   (make-instance 'rate-limit
-                 :events nil
+                 :events (make-array (* *default-count-multiplier* count))
                  :count count
                  :interval interval
                  :last-count 0))
@@ -110,8 +121,13 @@ LIMIT   - COUNT of ~a over INTERVAL of ~a seconds "
                      (when (slot-boundp condition 'interval)
                        (interval condition))))))
 
-(defun increment-event (rate-limit)
-  "Adds an event to the RATE-LIMIT represented
+(defun rate-limit-last-pointer (rate-limiter)
+  (if (= (rate-limit-pointer rate-limiter) 0)
+          (1- (* *default-count-multiplier* (rate-limit-count rate-limiter)))
+          (1- (rate-limit-pointer rate-limiter))))
+
+(defun increment-event (rate-limiter)
+  "Adds an event to the RATE-LIMITER represented
 at the current time.  If the new-count is greater than the count
 signals 'RATE-LIMIT-EXCEEDED error
 Returns no useful value
@@ -120,33 +136,48 @@ Available restarts:
                           retrying the INCREMENT-EVENT
      "
   (bt:with-lock-held (*increment-event-lock*)
-    (push (get-universal-time)
-          (rate-limit-events rate-limit))
-    (n-update-last-count rate-limit))
+    ;; store current-pointer
+    (let ((current-pointer (rate-limit-pointer rate-limiter)))
+      ;; add new event at pointer
+      (setf (aref (rate-limit-events rate-limiter) current-pointer)
+                  (get-universal-time))
+      ;; increments pointer; wraps to 0 if over (* *DEFAULT-COUNT-MULTIPLIER* COUNT)
+      (setf (rate-limit-pointer rate-limiter) (mod (1+ current-pointer)
+                                                   (* *default-count-multiplier* (rate-limit-count rate-limiter))))
+      ;; update last-count
+      (setf (rate-limit-last-count rate-limiter)
+          (let* ((start (aref  (rate-limit-events rate-limiter) current-pointer))
+                 (stop (- start (rate-limit-interval rate-limiter)))
+                 (new-count 0))
+            (loop for event across (rate-limit-events rate-limiter)
+                        do (if (>= event stop) (incf new-count)))
+            new-count))))
   (restart-case 
-      (when (> (rate-limit-last-count rate-limit) 
-               (rate-limit-count rate-limit))
+      (when (> (rate-limit-last-count rate-limiter) 
+               (rate-limit-count rate-limiter))
         (error 'rate-limit-exceeded
-               :count (rate-limit-last-count rate-limit)
-               :interval (rate-limit-interval rate-limit)
-               :limit (rate-limit-count rate-limit)))
+               :count (rate-limit-last-count rate-limiter)
+               :interval (rate-limit-interval rate-limiter)
+               :limit (rate-limit-count rate-limiter)))
     (retry-with-backoff (&optional c (duration (calc-backoff
-                                                rate-limit
+                                                rate-limiter
                                                 (get-universal-time))))
       :report (lambda (stream)
-                (format stream "Check again after sleeping ~a seconds to not exceed the rate-limit"  (calc-backoff rate-limit (get-universal-time))))
+                (format stream "Check again after sleeping ~a seconds to not exceed the rate-limit"  (calc-backoff rate-limiter (get-universal-time))))
       (unless *muffle-warnings*
         (warn "invoking retry-with-backoff for ~a seconds due to: ~a"
               duration (or c "unknown error")))
-      (pop (rate-limit-events rate-limit))
-      (decf (rate-limit-last-count rate-limit))
+      ;(pop (rate-limit-events rate-limiter))
+      (setf (rate-limit-pointer rate-limiter)
+            (rate-limit-last-pointer rate-limiter))
+      (decf (rate-limit-last-count rate-limiter))
       (sleep duration)
-      (increment-event rate-limit))
+      (increment-event rate-limiter))
     (continue-exceed-rate-limit (&optional c)
       :report (lambda (stream)
                 (format stream "Proceed and Exceed the Rate Limit"))
       (unless *muffle-warnings*
-        (if (> 0 (calc-backoff rate-limit (get-universal-time)))
+        (if (> 0 (calc-backoff rate-limiter (get-universal-time)))
             (warn "Continuing. This action will Exceed Rate Limit in spite of: ~a" (or c "unknown error"))
             (warn "Continuing. This action did not Exceed Rate Limit")))
       (values)))
@@ -156,54 +187,18 @@ Available restarts:
   "Invokes RATE-LIMIT:RETRY-WITH-BACKOFF"
   (invoke-restart 'retry-with-backoff c))
 
-(defun calc-backoff (rate-limit time)
+(defun calc-backoff (rate-limiter time)
   "calculates the backoff in seconds needed to avoid the
 RATE-LIMIT-LIMIT at the given TIME"
-  (with-slots (events interval count)
-      rate-limit
-    (let ((backoff (+ (nth (- count 1) events)
+  (with-slots (events interval count pointer)
+      rate-limiter
+    (let ((backoff (+ (aref events (rate-limit-last-pointer rate-limiter))   ;(nth (- count 1) events)
                       interval
                       1
                       (- time))))
       (if (>= backoff 0)
           backoff
           0))))
-
-(declaim (inline n-update-last-count))
-(defun n-update-last-count (rate-limit)
-  "Updates the last-count of the RATE-LIMIT.  Truncates events that are
-older than last event time - interval Not threadsafe."
-  (with-slots (events interval last-count)
-      rate-limit
-    (let ((stop-time (- (car events) interval))
-          (new-events (list :end)))
-      (log:info rate-limit)
-      (setf last-count 0)
-      (loop for event in events always (>= event stop-time)
-         do
-            (incf last-count)
-            (setf new-events (push event new-events))
-            (log:info last-count)
-            (log:info new-events))
-      (setf events (cdr (reverse new-events)))
-      ;;(setf (nthcdr last-count events) nil)
-      (log:info rate-limit)
-      (values last-count interval))))
-
-(defun calculate-count-events (rate-limit)
-  "Returns count of events over interval and a new list of valid events"
-  (with-slots (events interval last-count)
-      rate-limit
-    (let ((stop-time (- (car events) interval))
-          (count 1)
-          (new-events (list (car events))))
-      (setf last-count 0)
-      (loop for el in (cdr events) always (>= el stop-time)
-         do
-           (incf count)
-           (push el new-events))
-      ;(setf (nthcdr last-count events) nil)
-      (values count new-events))))
 
 (defmacro with-rate-limit (count interval rate-limit-exceeded-fn
                            &body body

@@ -68,14 +68,6 @@ package-name-test-results-yyy-hh-mm-ss.txt"
 	   :count 10
 	   :limit 9)))
 
-(test (t-n-update-last-count :depends-on (and t-increment-event))
-  (let ((rate-limit (make-rate-limit 11 20)))
-    (is (= 0 (rate-limit-last-count rate-limit)))
-    ;; push universal time into events
-    (push 3724953998
-	  (rate-limit-events rate-limit))
-    (rate-limit::n-update-last-count  rate-limit)
-    (is (= 1 (rate-limit-last-count rate-limit)))))
 
 (test (t-increment-event :depends-on (and t-make-rate-limit
 					  t-rate-limit-exceeded-condition))
@@ -104,7 +96,8 @@ package-name-test-results-yyy-hh-mm-ss.txt"
 (test (t-calc-backoff :depends-on (and t-make-rate-limit))
   (let ((rate-limit (make-rate-limit 4 2)))
     (setf (rate-limit-events rate-limit)
-	  '(3724954000 3724954000 3724954000 3724954000))
+          #(3724954000 3724954000 3724954000 3724954000 0 0 0 0 ))
+    (setf (rate-limit-pointer rate-limit) 4)
     (is (= 3
 	   (rate-limit::calc-backoff rate-limit
 				     3724954000)))
@@ -118,13 +111,15 @@ package-name-test-results-yyy-hh-mm-ss.txt"
 	  :elements (gen-integer :min (- (get-universal-time)
 					 (* interval 2))
 				 :max (get-universal-time)))))
-    (values (funcall list-gen)
+    (values (make-array num-events :initial-contents (funcall list-gen))
 	    (get-universal-time))))
 
 (test (t-calc-backoff-0 :depends-on (and t-calc-backoff))
   (let ((rate-limit (make-rate-limit 5 9)))
+    ;(setf (rate-limit-events rate-limit) '(3725012958 3725012958 3725012958 3725012958 3725012958))
     (setf (rate-limit-events rate-limit)
-	  '(3725012958 3725012958 3725012958 3725012958 3725012958))
+          #(3724954000 3724954000 3724954000 3724954000 0 0 0 0 ))
+    (setf (rate-limit-pointer rate-limit) 4)
     (is (= 0
 	   (rate-limit::calc-backoff rate-limit
 				     3725012969))))
@@ -135,7 +130,7 @@ package-name-test-results-yyy-hh-mm-ss.txt"
 	  (events (gen-events :num-events (* 10 count) :interval interval )))
       (setf (rate-limit-events rate-limit) events)
       (is (every #'(lambda (x) (<= 0 x))
-	      (loop for time from (car events) to (+ (get-universal-time) (* 2 interval))
+	      (loop for time from (aref events 0) to (+ (get-universal-time) (* 2 interval))
 		 collecting  
 		   (rate-limit::calc-backoff rate-limit time)))))))
 
