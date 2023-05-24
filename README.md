@@ -42,6 +42,12 @@ To run the test suite:
 (ql:quickload :rate-limit/test)
 (rate-limit/test:run-my-tests)
 ```
+or
+
+```lisp
+(asdf:test-system "rate-limit")
+```
+
 
 With a rate-limit object, a call to an API with a published rate-limit can be made without triggering a `429 Too Many Requests` 
 

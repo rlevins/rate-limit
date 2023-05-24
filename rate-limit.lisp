@@ -52,7 +52,7 @@
             :accessor rate-limit-events
             :documentation "events seen, each one is a universal time stamp")
    (interval :initarg :interval
-             :initform nil
+             :initform *default-interval* 
              :accessor rate-limit-interval
              :documentation "the interval in seconds for counting events")
    (count    :initarg :count
@@ -60,7 +60,7 @@
              ::accessor rate-limit-count
              :documentation "The allowable count of events in the given interval")
    (last-count :initarg :last-count
-               :initform *default-interval* 
+               :initform 0
                :accessor rate-limit-last-count
                :documentation "the event count as of the last seen event")))
 
@@ -175,11 +175,19 @@ RATE-LIMIT-LIMIT at the given TIME"
 older than last event time - interval Not threadsafe."
   (with-slots (events interval last-count)
       rate-limit
-    (let ((stop-time (- (car events) interval)))
+    (let ((stop-time (- (car events) interval))
+          (new-events (list :end)))
+      (log:info rate-limit)
       (setf last-count 0)
-      (loop for el in events always (>= el stop-time)
-         do  (incf last-count))
-      (setf (nthcdr last-count events) nil)
+      (loop for event in events always (>= event stop-time)
+         do
+            (incf last-count)
+            (setf new-events (push event new-events))
+            (log:info last-count)
+            (log:info new-events))
+      (setf events (cdr (reverse new-events)))
+      ;;(setf (nthcdr last-count events) nil)
+      (log:info rate-limit)
       (values last-count interval))))
 
 (defun calculate-count-events (rate-limit)
@@ -189,7 +197,7 @@ older than last event time - interval Not threadsafe."
     (let ((stop-time (- (car events) interval))
           (count 1)
           (new-events (list (car events))))
-      ;;(setf last-count 0)
+      (setf last-count 0)
       (loop for el in (cdr events) always (>= el stop-time)
          do
            (incf count)
@@ -227,8 +235,7 @@ EG:
 "
   (destructuring-bind (fn-name
                        &rest rate-limit-args
-                       &key (count *default-count*)
-		       (interval *default-interval*)
+                       &key (count *default-count*) (interval *default-interval*)
                        &allow-other-keys)
       (if (listp symbol)
 	  symbol

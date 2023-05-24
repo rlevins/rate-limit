@@ -53,9 +53,9 @@ package-name-test-results-yyy-hh-mm-ss.txt"
   (log:config :info)
   (tear-down-scaffold))
 
-(def-suite :all-tests)
+(def-suite :rate-limit-all-tests)
 
-(in-suite :all-tests)
+(in-suite :rate-limit-all-tests)
 
 (test t-make-rate-limit
   (is (eql 'rate-limit
@@ -71,6 +71,7 @@ package-name-test-results-yyy-hh-mm-ss.txt"
 (test (t-n-update-last-count :depends-on (and t-increment-event))
   (let ((rate-limit (make-rate-limit 11 20)))
     (is (= 0 (rate-limit-last-count rate-limit)))
+    ;; push universal time into events
     (push 3724953998
 	  (rate-limit-events rate-limit))
     (rate-limit::n-update-last-count  rate-limit)

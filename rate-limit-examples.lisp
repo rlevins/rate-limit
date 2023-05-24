@@ -32,10 +32,13 @@
 
 (defun run-example ()
   "Loops the test function to demonstrate the 'with-retry' macro and the rate-limit features"
-  (format t "Loops the test function to demonstrate the 'with-retry' macro and the rate-limit features")
+  (let ((start (get-universal-time)))
+   (format t "Loops the test function to demonstrate the 'with-retry' macro and the rate-limit features")
   (format t "The TEST function is a funtion to print the current date and time ,but is rate limited to 2 calls per 5 seconds~%")
  (loop for i from 1 to 5 
     do (let ((duration 1))
-         (warn "Sleeping ~a seconds" duration)
-         (sleep duration)
-         (with-retry (print-time )))))
+         (warn "Loop ~a: Not Sleeping ~a seconds" i duration)
+         ;(sleep duration)
+         (with-retry (print-time ))))
+    (format t "5 calls in ~a seconds~%" (- (get-universal-time) start)))
+)

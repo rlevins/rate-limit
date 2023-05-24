@@ -12,23 +12,23 @@
   :depends-on (#:bordeaux-threads)
   :components ((:file "rate-limit"))
   :in-order-to ((test-op
-		 (test-op "rate-limit/test"))))
+                 (test-op "rate-limit/test"))))
 
 
 (asdf:defsystem "rate-limit/test"
   :depends-on (#:rate-limit
-	       #:fiveam
-	       #:local-time
-	       #:cl-fad
-	       #:cl-ppcre
-	       #:log4cl)
+               #:fiveam
+               #:local-time
+               #:cl-fad
+               #:cl-ppcre
+               #:log4cl)
   :components ((:module "test"
-			:serial t
-			:components
-			((:file "test"))))
+                :serial t
+                :components
+                ((:file "test"))))
   :perform
   (asdf:test-op (o s)
-		(uiop:symbol-call "rate-limit/test"
+		(uiop:symbol-call (find-package :rate-limit/test)
 				  '#:run-my-tests)))
 
 (asdf:defsystem "rate-limit-examples"
